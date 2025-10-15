@@ -1,9 +1,15 @@
 package im.bigs.pg.application.payment.service
 
 import im.bigs.pg.application.payment.port.`in`.*
+import im.bigs.pg.application.payment.port.out.PaymentOutPort
+import im.bigs.pg.application.payment.port.out.PaymentQuery
+import im.bigs.pg.application.payment.port.out.PaymentSummaryFilter
+import im.bigs.pg.domain.payment.PaymentStatus
 import im.bigs.pg.domain.payment.PaymentSummary
 import org.springframework.stereotype.Service
 import java.time.Instant
+import java.time.LocalDateTime
+import java.time.ZoneId
 import java.util.Base64
 
 /**
@@ -12,7 +18,9 @@ import java.util.Base64
  * - 통계는 조회 조건과 동일한 집합을 대상으로 계산됩니다.
  */
 @Service
-class QueryPaymentsService : QueryPaymentsUseCase {
+class QueryPaymentsService(
+    private val paymentRepository: PaymentOutPort,
+) : QueryPaymentsUseCase {
     /**
      * 필터를 기반으로 결제 내역을 조회합니다.
      *
@@ -23,11 +31,41 @@ class QueryPaymentsService : QueryPaymentsUseCase {
      * @return 조회 결과(목록/통계/커서)
      */
     override fun query(filter: QueryFilter): QueryResult {
+        val (cursorCreatedAt, cursorId) =  decodeCursor(filter.cursor)
+
+        val paymentQuery = PaymentQuery(
+            filter.partnerId,
+            filter.status?.let { PaymentStatus.valueOf(it) },
+            filter.from,
+            filter.to,
+            filter.limit,
+            LocalDateTime.ofInstant(cursorCreatedAt, ZoneId.of("UTC")),
+            cursorId
+        )
+        val paymentPage = paymentRepository.findBy(paymentQuery)
+        val nextCursor = encodeCursor(
+            Instant.from(paymentPage.nextCursorCreatedAt),
+            paymentPage.nextCursorId
+        )
+
+        val paymentSummaryFilter = PaymentSummaryFilter(
+            filter.partnerId,
+            filter.status?.let { PaymentStatus.valueOf(it) },
+            filter.from,
+            filter.to,
+        )
+        val paymentSummaryProjection = paymentRepository.summary(paymentSummaryFilter)
+        val paymentSummary = PaymentSummary(
+            count = paymentSummaryProjection.count,
+            totalAmount = paymentSummaryProjection.totalAmount,
+            totalNetAmount = paymentSummaryProjection.totalNetAmount
+        )
+
         return QueryResult(
-            items = emptyList(),
-            summary = PaymentSummary(count = 0, totalAmount = java.math.BigDecimal.ZERO, totalNetAmount = java.math.BigDecimal.ZERO),
-            nextCursor = null,
-            hasNext = false,
+            items = paymentPage.items,
+            summary = paymentSummary,
+            nextCursor = nextCursor,
+            hasNext = paymentPage.hasNext,
         )
     }
 
