@@ -9,7 +9,7 @@ import im.bigs.pg.domain.payment.PaymentSummary
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.time.LocalDateTime
-import java.time.ZoneId
+import java.time.ZoneOffset
 import java.util.Base64
 
 /**
@@ -32,25 +32,26 @@ class QueryPaymentsService(
      */
     override fun query(filter: QueryFilter): QueryResult {
         val (cursorCreatedAt, cursorId) =  decodeCursor(filter.cursor)
+        val paymentStatus = filter.status?.let { PaymentStatus.valueOf(it) }
 
         val paymentQuery = PaymentQuery(
             filter.partnerId,
-            filter.status?.let { PaymentStatus.valueOf(it) },
+            paymentStatus,
             filter.from,
             filter.to,
             filter.limit,
-            LocalDateTime.ofInstant(cursorCreatedAt, ZoneId.of("UTC")),
+            cursorCreatedAt?.let { LocalDateTime.ofInstant(it, ZoneOffset.UTC) },
             cursorId
         )
         val paymentPage = paymentRepository.findBy(paymentQuery)
         val nextCursor = encodeCursor(
-            Instant.from(paymentPage.nextCursorCreatedAt),
+            paymentPage.nextCursorCreatedAt?.toInstant(ZoneOffset.UTC),
             paymentPage.nextCursorId
         )
 
         val paymentSummaryFilter = PaymentSummaryFilter(
             filter.partnerId,
-            filter.status?.let { PaymentStatus.valueOf(it) },
+            paymentStatus,
             filter.from,
             filter.to,
         )
