@@ -16,4 +16,11 @@ spring:
       write-dates-as-timestamps: false
 server:
   port: 8080
+external:
+  pg:
+    test:
+      base-url: ${TEST_PG_CLIENT_BASE_URL}
+      api-key: ${TEST_PG_CLIENT_API_KEY}
+      iv:
+        base64-url: ${TEST_PG_IV_BASE64_URL}
 
