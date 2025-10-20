@@ -26,7 +26,7 @@ class TestPgClient(
     private lateinit var apiKey: String
 
     override fun supports(partnerId: Long): Boolean {
-        TODO("Not yet implemented")
+        return partnerId == 1L
     }
 
     override fun approve(request: PgApproveRequest): PgApproveResult {
